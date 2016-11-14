@@ -27,7 +27,6 @@ import (
 type Engine struct {
 	db            *core.DB
 	dialect       core.Dialect
-	logid         string
 	ColumnMapper  core.IMapper
 	TableMapper   core.IMapper
 	TagIdentifier string
@@ -311,10 +310,10 @@ func (engine *Engine) Sql(querystring string, args ...interface{}) *Session {
 	return session.Sql(querystring, args...)
 }
 
-func (engine *Engine) Logid(logid string) *Session {
+func (engine *Engine) Comments(commentStr string) *Session {
 	session := engine.NewSession()
 	session.IsAutoClose = true
-	return session.Logid(logid)
+	return session.Comments(commentStr)
 }
 
 // Default if your struct has "created" or "updated" filed tag, the fields

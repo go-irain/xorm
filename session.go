@@ -30,7 +30,7 @@ type Session struct {
 	IsCommitedOrRollbacked bool
 	TransType              string
 	IsAutoClose            bool
-	logid                  string
+	comments               string
 	// Automatically reset the statement after operations that execute a SQL
 	// query such as Count(), Find(), Get(), ...
 	AutoResetStatement bool
@@ -116,9 +116,9 @@ func (session *Session) And(querystring string, args ...interface{}) *Session {
 	return session
 }
 
-// Method Logid add logid string
-func (session *Session) Logid(logid string) *Session {
-	session.logid = logid
+// Method Comments add comments string
+func (session *Session) Comments(commentStr string) *Session {
+	session.comments = commentStr
 	return session
 }
 
@@ -1031,8 +1031,8 @@ func (session *Session) Get(bean interface{}) (bool, error) {
 		sqlStr = session.Statement.RawSQL
 		args = session.Statement.RawParams
 	}
-	if session.logid != "" {
-		sqlStr = "/*" + session.logid + "*/" + sqlStr
+	if session.comments != "" {
+		sqlStr = "/*" + session.comments + "*/" + sqlStr
 	}
 	if session.Statement.JoinStr == "" {
 		if cacher := session.Engine.getCacher2(session.Statement.RefTable); cacher != nil &&
@@ -1267,8 +1267,8 @@ func (session *Session) Find(rowsSlicePtr interface{}, condiBean ...interface{})
 		sqlStr = session.Statement.RawSQL
 		args = session.Statement.RawParams
 	}
-	if session.logid != "" {
-		sqlStr = "/*" + session.logid + "*/" + sqlStr
+	if session.comments != "" {
+		sqlStr = "/*" + session.comments + "*/" + sqlStr
 	}
 	var err error
 	if session.Statement.JoinStr == "" {
@@ -2075,8 +2075,8 @@ func (session *Session) Query(sqlStr string, paramStr ...interface{}) (resultsSl
 	if session.IsAutoClose {
 		defer session.Close()
 	}
-	if session.logid != "" {
-		sqlStr = "/*" + session.logid + "*/" + sqlStr
+	if session.comments != "" {
+		sqlStr = "/*" + session.comments + "*/" + sqlStr
 	}
 	return session.query(sqlStr, paramStr...)
 }
@@ -3141,8 +3141,8 @@ func (session *Session) innerInsert(bean interface{}) (int64, error) {
 		strings.Join(colNames, session.Engine.Quote(", ")),
 		session.Engine.QuoteStr(),
 		colPlaces)
-	if session.logid != "" {
-		sqlStr = "/*" + session.logid + "*/" + sqlStr
+	if session.comments != "" {
+		sqlStr = "/*" + session.comments + "*/" + sqlStr
 	}
 	handleAfterInsertProcessorFunc := func(bean interface{}) {
 
@@ -3725,8 +3725,8 @@ func (session *Session) Update(bean interface{}, condiBean ...interface{}) (int6
 	args = append(args, st.Params...)
 	args = append(args, inArgs...)
 	args = append(args, condiArgs...)
-	if session.logid != "" {
-		sqlStr = "/*" + session.logid + "*/" + sqlStr
+	if session.comments != "" {
+		sqlStr = "/*" + session.comments + "*/" + sqlStr
 	}
 	res, err := session.exec(sqlStr, args...)
 	if err != nil {
@@ -3931,8 +3931,8 @@ func (session *Session) Delete(bean interface{}) (int64, error) {
 	if cacher := session.Engine.getCacher2(session.Statement.RefTable); cacher != nil && session.Statement.UseCache {
 		session.cacheDelete(sqlStrForCache, argsForCache...)
 	}
-	if session.logid != "" {
-		sqlStr = "/*" + session.logid + "*/" + sqlStr
+	if session.comments != "" {
+		sqlStr = "/*" + session.comments + "*/" + sqlStr
 	}
 	res, err := session.exec(sqlStr, args...)
 	if err != nil {
