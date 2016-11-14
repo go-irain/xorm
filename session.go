@@ -119,7 +119,6 @@ func (session *Session) And(querystring string, args ...interface{}) *Session {
 // Method Comments add comments string
 func (session *Session) Comments(commentStr string) *Session {
 	session.comments = commentStr
-	session.IsAutoCommit = false
 	return session
 }
 
