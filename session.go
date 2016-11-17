@@ -465,7 +465,7 @@ func (session *Session) scanMapIntoStruct(obj interface{}, objMap map[string][]b
 
 //Execute sql
 func (session *Session) innerExec(sqlStr string, args ...interface{}) (sql.Result, error) {
-	res, err := session.db.Exec(sqlStr, args...)
+	res, err := session.DB().Exec(sqlStr, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -1056,7 +1056,7 @@ func (session *Session) Get(bean interface{}) (bool, error) {
 	var err error
 	session.queryPreprocess(&sqlStr, args...)
 	if session.IsAutoCommit {
-		rawRows, err = session.db.Query(sqlStr, args...)
+		rawRows, err = session.DB().Query(sqlStr, args...)
 		// stmt, errPrepare := session.doPrepare(sqlStr)
 		// if errPrepare != nil {
 		// 	return false, errPrepare
@@ -1300,7 +1300,7 @@ func (session *Session) Find(rowsSlicePtr interface{}, condiBean ...interface{})
 		session.queryPreprocess(&sqlStr, args...)
 
 		if session.IsAutoCommit {
-			rawRows, err = session.db.Query(sqlStr, args...)
+			rawRows, err = session.DB().Query(sqlStr, args...)
 			// stmt, err = session.doPrepare(sqlStr)
 			// if err != nil {
 			// 	return err
@@ -2041,7 +2041,14 @@ func (session *Session) query(sqlStr string, paramStr ...interface{}) (resultsSl
 	session.queryPreprocess(&sqlStr, paramStr...)
 
 	if session.IsAutoCommit {
-		return session.innerQuery(session.DB(), sqlStr, paramStr...)
+		rows, err := session.DB().Query(sqlStr, paramStr...)
+		if rows != nil {
+			defer rows.Close()
+		}
+		if err != nil {
+			return nil, err
+		}
+		return rows2maps(rows)
 	}
 	return session.txQuery(session.Tx, sqlStr, paramStr...)
 }
@@ -2087,15 +2094,7 @@ func (session *Session) Query(sqlStr string, paramStr ...interface{}) (resultsSl
 	if session.comments != "" {
 		sqlStr = "/*" + session.comments + "*/" + sqlStr
 	}
-	rows, err := session.db.Query(sqlStr, paramStr...)
-	if rows != nil {
-		defer rows.Close()
-	}
-	if err != nil {
-		return nil, err
-	}
-	return rows2maps(rows)
-	//return session.query(sqlStr, paramStr...)
+	return session.query(sqlStr, paramStr...)
 }
 
 // =============================
