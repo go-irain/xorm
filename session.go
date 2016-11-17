@@ -465,17 +465,24 @@ func (session *Session) scanMapIntoStruct(obj interface{}, objMap map[string][]b
 
 //Execute sql
 func (session *Session) innerExec(sqlStr string, args ...interface{}) (sql.Result, error) {
-	stmt, err := session.doPrepare(sqlStr)
-	if err != nil {
-		return nil, err
-	}
-	//defer stmt.Close()
-
-	res, err := stmt.Exec(args...)
+	res, err := session.db.Exec(sqlStr, args...)
 	if err != nil {
 		return nil, err
 	}
 	return res, nil
+	/*
+		stmt, err := session.doPrepare(sqlStr)
+		if err != nil {
+			return nil, err
+		}
+		//defer stmt.Close()
+
+		res, err := stmt.Exec(args...)
+		if err != nil {
+			return nil, err
+		}
+		return res, nil
+	*/
 }
 
 func (session *Session) exec(sqlStr string, args ...interface{}) (sql.Result, error) {
@@ -1049,12 +1056,13 @@ func (session *Session) Get(bean interface{}) (bool, error) {
 	var err error
 	session.queryPreprocess(&sqlStr, args...)
 	if session.IsAutoCommit {
-		stmt, errPrepare := session.doPrepare(sqlStr)
-		if errPrepare != nil {
-			return false, errPrepare
-		}
-		// defer stmt.Close() // !nashtsai! don't close due to stmt is cached and bounded to this session
-		rawRows, err = stmt.Query(args...)
+		rawRows, err = session.db.Query(sqlStr, args...)
+		// stmt, errPrepare := session.doPrepare(sqlStr)
+		// if errPrepare != nil {
+		// 	return false, errPrepare
+		// }
+		// // defer stmt.Close() // !nashtsai! don't close due to stmt is cached and bounded to this session
+		// rawRows, err = stmt.Query(args...)
 	} else {
 		rawRows, err = session.Tx.Query(sqlStr, args...)
 	}
@@ -1287,16 +1295,17 @@ func (session *Session) Find(rowsSlicePtr interface{}, condiBean ...interface{})
 
 	if sliceValue.Kind() != reflect.Map {
 		var rawRows *core.Rows
-		var stmt *core.Stmt
+		//var stmt *core.Stmt
 
 		session.queryPreprocess(&sqlStr, args...)
 
 		if session.IsAutoCommit {
-			stmt, err = session.doPrepare(sqlStr)
-			if err != nil {
-				return err
-			}
-			rawRows, err = stmt.Query(args...)
+			rawRows, err = session.db.Query(sqlStr, args...)
+			// stmt, err = session.doPrepare(sqlStr)
+			// if err != nil {
+			// 	return err
+			// }
+			// rawRows, err = stmt.Query(args...)
 		} else {
 			rawRows, err = session.Tx.Query(sqlStr, args...)
 		}
@@ -2078,7 +2087,15 @@ func (session *Session) Query(sqlStr string, paramStr ...interface{}) (resultsSl
 	if session.comments != "" {
 		sqlStr = "/*" + session.comments + "*/" + sqlStr
 	}
-	return session.query(sqlStr, paramStr...)
+	rows, err := session.db.Query(sqlStr, paramStr...)
+	if rows != nil {
+		defer rows.Close()
+	}
+	if err != nil {
+		return nil, err
+	}
+	return rows2maps(rows)
+	//return session.query(sqlStr, paramStr...)
 }
 
 // =============================
