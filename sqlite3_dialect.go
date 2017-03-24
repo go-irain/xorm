@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/go-xorm/core"
@@ -236,9 +237,10 @@ func (db *sqlite3) TableCheckSql(tableName string) (string, []interface{}) {
 }
 
 func (db *sqlite3) DropIndexSql(tableName string, index *core.Index) string {
-	quote := db.Quote
 	//var unique string
-	var idxName string = index.Name
+	quote := db.Quote
+	idxName := index.Name
+
 	if !strings.HasPrefix(idxName, "UQE_") &&
 		!strings.HasPrefix(idxName, "IDX_") {
 		if index.Type == core.UniqueType {
@@ -263,10 +265,8 @@ func (db *sqlite3) ForUpdateSql(query string) string {
 func (db *sqlite3) IsColumnExist(tableName, colName string) (bool, error) {
 	args := []interface{}{tableName}
 	query := "SELECT name FROM sqlite_master WHERE type='table' and name = ? and ((sql like '%`" + colName + "`%') or (sql like '%[" + colName + "]%'))"
+	db.LogSQL(query, args)
 	rows, err := db.DB().Query(query, args...)
-	if db.Logger != nil {
-		db.Logger.Info("[sql]", query, args)
-	}
 	if err != nil {
 		return false, err
 	}
@@ -281,11 +281,8 @@ func (db *sqlite3) IsColumnExist(tableName, colName string) (bool, error) {
 func (db *sqlite3) GetColumns(tableName string) ([]string, map[string]*core.Column, error) {
 	args := []interface{}{tableName}
 	s := "SELECT sql FROM sqlite_master WHERE type='table' and name = ?"
-
+	db.LogSQL(s, args)
 	rows, err := db.DB().Query(s, args...)
-	if db.Logger != nil {
-		db.Logger.Info("[sql]", s, args)
-	}
 	if err != nil {
 		return nil, nil, err
 	}
@@ -306,21 +303,24 @@ func (db *sqlite3) GetColumns(tableName string) ([]string, map[string]*core.Colu
 
 	nStart := strings.Index(name, "(")
 	nEnd := strings.LastIndex(name, ")")
-	colCreates := strings.Split(name[nStart+1:nEnd], ",")
+	reg := regexp.MustCompile(`[^\(,\)]*(\([^\(]*\))?`)
+	colCreates := reg.FindAllString(name[nStart+1:nEnd], -1)
 	cols := make(map[string]*core.Column)
 	colSeq := make([]string, 0)
 	for _, colStr := range colCreates {
+		reg = regexp.MustCompile(`,\s`)
+		colStr = reg.ReplaceAllString(colStr, ",")
 		fields := strings.Fields(strings.TrimSpace(colStr))
 		col := new(core.Column)
-		col.Indexes = make(map[string]bool)
+		col.Indexes = make(map[string]int)
 		col.Nullable = true
 		col.DefaultIsEmpty = true
 		for idx, field := range fields {
 			if idx == 0 {
-				col.Name = strings.Trim(field, "`[] ")
+				col.Name = strings.Trim(strings.Trim(field, "`[] "), `"`)
 				continue
 			} else if idx == 1 {
-				col.SQLType = core.SQLType{field, 0, 0}
+				col.SQLType = core.SQLType{Name: field, DefaultLength: 0, DefaultLength2: 0}
 			}
 			switch field {
 			case "PRIMARY":
@@ -350,11 +350,9 @@ func (db *sqlite3) GetColumns(tableName string) ([]string, map[string]*core.Colu
 func (db *sqlite3) GetTables() ([]*core.Table, error) {
 	args := []interface{}{}
 	s := "SELECT name FROM sqlite_master WHERE type='table'"
+	db.LogSQL(s, args)
 
 	rows, err := db.DB().Query(s, args...)
-	if db.Logger != nil {
-		db.Logger.Info("[sql]", s, args)
-	}
 	if err != nil {
 		return nil, err
 	}
@@ -378,11 +376,9 @@ func (db *sqlite3) GetTables() ([]*core.Table, error) {
 func (db *sqlite3) GetIndexes(tableName string) (map[string]*core.Index, error) {
 	args := []interface{}{tableName}
 	s := "SELECT sql FROM sqlite_master WHERE type='index' and tbl_name = ?"
+	db.LogSQL(s, args)
 
 	rows, err := db.DB().Query(s, args...)
-	if db.Logger != nil {
-		db.Logger.Info("[sql]", s, args)
-	}
 	if err != nil {
 		return nil, err
 	}
@@ -390,16 +386,16 @@ func (db *sqlite3) GetIndexes(tableName string) (map[string]*core.Index, error) 
 
 	indexes := make(map[string]*core.Index, 0)
 	for rows.Next() {
-		var tmpSql sql.NullString
-		err = rows.Scan(&tmpSql)
+		var tmpSQL sql.NullString
+		err = rows.Scan(&tmpSQL)
 		if err != nil {
 			return nil, err
 		}
 
-		if !tmpSql.Valid {
+		if !tmpSQL.Valid {
 			continue
 		}
-		sql := tmpSql.String
+		sql := tmpSQL.String
 
 		index := new(core.Index)
 		nNStart := strings.Index(sql, "INDEX")
@@ -410,7 +406,7 @@ func (db *sqlite3) GetIndexes(tableName string) (map[string]*core.Index, error) 
 
 		indexName := strings.Trim(sql[nNStart+6:nNEnd], "` []")
 		if strings.HasPrefix(indexName, "IDX_"+tableName) || strings.HasPrefix(indexName, "UQE_"+tableName) {
-			index.Name = indexName[5+len(tableName) : len(indexName)]
+			index.Name = indexName[5+len(tableName):]
 		} else {
 			index.Name = indexName
 		}

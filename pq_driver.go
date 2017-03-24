@@ -14,10 +14,6 @@ import (
 	"github.com/go-xorm/core"
 )
 
-// func init() {
-// 	core.RegisterDriver("postgres", &pqDriver{})
-// }
-
 type pqDriver struct {
 }
 
@@ -41,7 +37,7 @@ func parseURL(connstr string) (string, error) {
 		return "", err
 	}
 
-	if u.Scheme != "postgres" {
+	if u.Scheme != "postgresql" && u.Scheme != "postgres" {
 		return "", fmt.Errorf("invalid connection protocol: %s", u.Scheme)
 	}
 
@@ -103,7 +99,7 @@ func (p *pqDriver) Parse(driverName, dataSourceName string) (*core.Uri, error) {
 	db := &core.Uri{DbType: core.POSTGRES}
 	o := make(values)
 	var err error
-	if strings.HasPrefix(dataSourceName, "postgres://") {
+	if strings.HasPrefix(dataSourceName, "postgresql://") || strings.HasPrefix(dataSourceName, "postgres://") {
 		dataSourceName, err = parseURL(dataSourceName)
 		if err != nil {
 			return nil, err
@@ -115,5 +111,9 @@ func (p *pqDriver) Parse(driverName, dataSourceName string) (*core.Uri, error) {
 	if db.DbName == "" {
 		return nil, errors.New("dbname is empty")
 	}
+	/*db.Schema = o.Get("schema")
+	if len(db.Schema) == 0 {
+		db.Schema = "public"
+	}*/
 	return db, nil
 }

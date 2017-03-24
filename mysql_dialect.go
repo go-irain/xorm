@@ -6,7 +6,6 @@ package xorm
 
 import (
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -14,10 +13,6 @@ import (
 
 	"github.com/go-xorm/core"
 )
-
-// func init() {
-// 	RegisterDialect("mysql", &mysql{})
-// }
 
 var (
 	mysqlReservedWords = map[string]bool{
@@ -206,7 +201,7 @@ func (db *mysql) SqlType(c *core.Column) string {
 		res = core.Enum
 		res += "("
 		opts := ""
-		for v, _ := range c.EnumOptions {
+		for v := range c.EnumOptions {
 			opts += fmt.Sprintf(",'%v'", v)
 		}
 		res += strings.TrimLeft(opts, ",")
@@ -215,7 +210,7 @@ func (db *mysql) SqlType(c *core.Column) string {
 		res = core.Set
 		res += "("
 		opts := ""
-		for v, _ := range c.SetOptions {
+		for v := range c.SetOptions {
 			opts += fmt.Sprintf(",'%v'", v)
 		}
 		res += strings.TrimLeft(opts, ",")
@@ -231,8 +226,8 @@ func (db *mysql) SqlType(c *core.Column) string {
 		res = t
 	}
 
-	var hasLen1 bool = (c.Length > 0)
-	var hasLen2 bool = (c.Length2 > 0)
+	hasLen1 := (c.Length > 0)
+	hasLen2 := (c.Length2 > 0)
 
 	if res == core.BigInt && !hasLen1 && !hasLen2 {
 		c.Length = 20
@@ -303,12 +298,9 @@ func (db *mysql) GetColumns(tableName string) ([]string, map[string]*core.Column
 	args := []interface{}{db.DbName, tableName}
 	s := "SELECT `COLUMN_NAME`, `IS_NULLABLE`, `COLUMN_DEFAULT`, `COLUMN_TYPE`," +
 		" `COLUMN_KEY`, `EXTRA` FROM `INFORMATION_SCHEMA`.`COLUMNS` WHERE `TABLE_SCHEMA` = ? AND `TABLE_NAME` = ?"
+	db.LogSQL(s, args)
 
 	rows, err := db.DB().Query(s, args...)
-	if db.Logger != nil {
-		db.Logger.Info("[sql]", s, args)
-	}
-
 	if err != nil {
 		return nil, nil, err
 	}
@@ -318,7 +310,7 @@ func (db *mysql) GetColumns(tableName string) ([]string, map[string]*core.Column
 	colSeq := make([]string, 0)
 	for rows.Next() {
 		col := new(core.Column)
-		col.Indexes = make(map[string]bool)
+		col.Indexes = make(map[string]int)
 
 		var columnName, isNullable, colType, colKey, extra string
 		var colDefault *string
@@ -380,9 +372,9 @@ func (db *mysql) GetColumns(tableName string) ([]string, map[string]*core.Column
 		col.Length = len1
 		col.Length2 = len2
 		if _, ok := core.SqlTypes[colType]; ok {
-			col.SQLType = core.SQLType{colType, len1, len2}
+			col.SQLType = core.SQLType{Name: colType, DefaultLength: len1, DefaultLength2: len2}
 		} else {
-			return nil, nil, errors.New(fmt.Sprintf("unkonw colType %v", colType))
+			return nil, nil, fmt.Errorf("Unknown colType %v", colType)
 		}
 
 		if colKey == "PRI" {
@@ -414,12 +406,10 @@ func (db *mysql) GetColumns(tableName string) ([]string, map[string]*core.Column
 func (db *mysql) GetTables() ([]*core.Table, error) {
 	args := []interface{}{db.DbName}
 	s := "SELECT `TABLE_NAME`, `ENGINE`, `TABLE_ROWS`, `AUTO_INCREMENT` from " +
-		"`INFORMATION_SCHEMA`.`TABLES` WHERE `TABLE_SCHEMA`=? AND (`ENGINE`='MyISAM' OR `ENGINE` = 'InnoDB')"
+		"`INFORMATION_SCHEMA`.`TABLES` WHERE `TABLE_SCHEMA`=? AND (`ENGINE`='MyISAM' OR `ENGINE` = 'InnoDB' OR `ENGINE` = 'TokuDB')"
+	db.LogSQL(s, args)
 
 	rows, err := db.DB().Query(s, args...)
-	if db.Logger != nil {
-		db.Logger.Info("[sql]", s, args)
-	}
 	if err != nil {
 		return nil, err
 	}
@@ -445,11 +435,9 @@ func (db *mysql) GetTables() ([]*core.Table, error) {
 func (db *mysql) GetIndexes(tableName string) (map[string]*core.Index, error) {
 	args := []interface{}{db.DbName, tableName}
 	s := "SELECT `INDEX_NAME`, `NON_UNIQUE`, `COLUMN_NAME` FROM `INFORMATION_SCHEMA`.`STATISTICS` WHERE `TABLE_SCHEMA` = ? AND `TABLE_NAME` = ?"
+	db.LogSQL(s, args)
 
 	rows, err := db.DB().Query(s, args...)
-	if db.Logger != nil {
-		db.Logger.Info("[sql]", s, args)
-	}
 	if err != nil {
 		return nil, err
 	}
@@ -477,7 +465,7 @@ func (db *mysql) GetIndexes(tableName string) (map[string]*core.Index, error) {
 		colName = strings.Trim(colName, "` ")
 		var isRegular bool
 		if strings.HasPrefix(indexName, "IDX_"+tableName) || strings.HasPrefix(indexName, "UQE_"+tableName) {
-			indexName = indexName[5+len(tableName) : len(indexName)]
+			indexName = indexName[5+len(tableName):]
 			isRegular = true
 		}
 
