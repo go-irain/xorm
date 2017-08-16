@@ -294,9 +294,6 @@ func (session *Session) Update(bean interface{}, condiBean ...interface{}) (int6
 			strings.Join(colNames, ", "),
 			condSQL)
 	}
-	if session.comments != "" {
-		sqlStr = "/*" + session.comments + "*/" + sqlStr
-	}
 	res, err := session.exec(sqlStr, append(args, condArgs...)...)
 	if err != nil {
 		return 0, err
