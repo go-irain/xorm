@@ -113,7 +113,7 @@ func (session *Session) Comments(commentStr string) *Session {
 }
 
 //Master Set read from mater
-func (session *Session) Master(commentStr string) *Session {
+func (session *Session) Master() *Session {
 	session.Statement.master = true
 	return session
 }
