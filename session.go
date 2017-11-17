@@ -111,6 +111,12 @@ func (session *Session) Comments(commentStr string) *Session {
 	session.comments = commentStr
 	return session
 }
+
+//Master Set read from mater
+func (session *Session) Master(commentStr string) *Session {
+	session.Statement.master = true
+	return session
+}
 func (session *Session) Prepare() *Session {
 	session.prepareStmt = true
 	return session

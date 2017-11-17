@@ -73,6 +73,7 @@ type Statement struct {
 	decrColumns     map[string]decrParam
 	exprColumns     map[string]exprParam
 	cond            builder.Cond
+	master          bool
 }
 
 // Init reset all the statement's fields
@@ -111,6 +112,7 @@ func (statement *Statement) Init() {
 	statement.decrColumns = make(map[string]decrParam)
 	statement.exprColumns = make(map[string]exprParam)
 	statement.cond = builder.NewCond()
+	statement.master = false
 }
 
 // NoAutoCondition if you do not want convert bean's field as query condition, then use this function
@@ -1235,9 +1237,12 @@ func (statement *Statement) genSelectSQL(columnStr, condSQL string) (a string) {
 				column, statement.Start, column, fromStr, whereStr, orderStr, groupStr)
 		}
 	}
-
+	master := ""
+	if statement.master {
+		master = " /*master*/"
+	}
 	// !nashtsai! REVIEW Sprintf is considered slowest mean of string concatnation, better to work with builder pattern
-	a = fmt.Sprintf("SELECT %v%v%v%v%v", top, distinct, columnStr, fromStr, whereStr)
+	a = fmt.Sprintf("SELECT"+master+" %v%v%v%v%v", top, distinct, columnStr, fromStr, whereStr)
 	if len(mssqlCondi) > 0 {
 		if len(whereStr) > 0 {
 			a += " AND " + mssqlCondi
@@ -1263,7 +1268,11 @@ func (statement *Statement) genSelectSQL(columnStr, condSQL string) (a string) {
 		}
 	} else if dialect.DBType() == core.ORACLE {
 		if statement.Start != 0 || statement.LimitN != 0 {
-			a = fmt.Sprintf("SELECT %v FROM (SELECT %v,ROWNUM RN FROM (%v) at WHERE ROWNUM <= %d) aat WHERE RN > %d", columnStr, columnStr, a, statement.Start+statement.LimitN, statement.Start)
+			master := ""
+			if statement.master {
+				master = " /*master*/"
+			}
+			a = fmt.Sprintf("SELECT"+master+" %v FROM (SELECT %v,ROWNUM RN FROM (%v) at WHERE ROWNUM <= %d) aat WHERE RN > %d", columnStr, columnStr, a, statement.Start+statement.LimitN, statement.Start)
 		}
 	}
 	if statement.IsForUpdate {
@@ -1318,8 +1327,11 @@ func (statement *Statement) convertIDSQL(sqlStr string) string {
 		if statement.LimitN > 0 && statement.Engine.dialect.DBType() == core.MSSQL {
 			top = fmt.Sprintf("TOP %d ", statement.LimitN)
 		}
-
-		return fmt.Sprintf("SELECT %s%s FROM %v", top, colstrs, sqls[1])
+		master := ""
+		if statement.master {
+			master = " /*master*/"
+		}
+		return fmt.Sprintf("SELECT"+master+" %s%s FROM %v", top, colstrs, sqls[1])
 	}
 	return ""
 }
@@ -1333,7 +1345,11 @@ func (statement *Statement) convertUpdateSQL(sqlStr string) (string, string) {
 	sqls := splitNNoCase(sqlStr, "where", 2)
 	if len(sqls) != 2 {
 		if len(sqls) == 1 {
-			return sqls[0], fmt.Sprintf("SELECT %v FROM %v",
+			master := ""
+			if statement.master {
+				master = " /*master*/"
+			}
+			return sqls[0], fmt.Sprintf("SELECT"+master+" %v FROM %v",
 				colstrs, statement.Engine.Quote(statement.TableName()))
 		}
 		return "", ""
@@ -1359,8 +1375,11 @@ func (statement *Statement) convertUpdateSQL(sqlStr string) (string, string) {
 			}
 		}
 	}
-
-	return sqls[0], fmt.Sprintf("SELECT %v FROM %v WHERE %v",
+	master := ""
+	if statement.master {
+		master = " /*master*/"
+	}
+	return sqls[0], fmt.Sprintf("SELECT"+master+" %v FROM %v WHERE %v",
 		colstrs, statement.Engine.Quote(statement.TableName()),
 		whereStr)
 }
